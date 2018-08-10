@@ -1,0 +1,31 @@
+server:
+  servlet:
+    context-path: /search
+  port: 8080
+
+#Freemarker
+spring:
+  freemarker:
+    template-loader-path: classpath:/templates/
+    cache: false
+    charset: utf-8
+    check-template-location: true
+    content-type: text/html
+    expose-request-attributes: true
+    expose-session-attributes: true
+    request-context-attribute: request
+    suffix: .ftl
+ #热部署
+  devtools:
+    restart:
+      enabled: true
+      exclude: static
+      additional-paths: src/main/java
+# 静态资源
+  mvc:
+    static-path-pattern: /static/**
+# 日志
+logging:
+  level:
+    com.rank: debug
+
