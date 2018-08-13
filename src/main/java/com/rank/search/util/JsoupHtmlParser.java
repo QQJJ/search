@@ -149,4 +149,40 @@ public class JsoupHtmlParser {
 		}
 		return Jsoup.clean(htmlSource, Whitelist.none());
 	}
+
+	/**
+	 * 去掉标签中某一部分内容,暂定位第一版
+	 *
+	 * @param htmlSource
+	 * @param selector
+	 * @param removeSelector
+	 * @return
+	 */
+	public static String removeInnerContent(String htmlSource, String selector,
+											List<String> removeSelector) {
+		if (selector == null
+				|| StringOperatorUtil.isBlankCollection(removeSelector)) {
+			return htmlSource;
+		}
+		try {
+			Document doc = Jsoup.parse(htmlSource);// 先预解析
+			Elements elements = doc.select(selector);
+			String result = null;
+			if (elements != null) {
+				for (Element ele : elements) {
+					for (String sel : removeSelector) {
+						ele.select(sel).remove();
+					}
+					// result = ele.toString();
+					//result = JsoupHtmlParser.getCleanTxt(ele.toString());
+					//break;
+				}
+			}
+			// 转string
+			return doc.toString();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return null;
+	}
 }

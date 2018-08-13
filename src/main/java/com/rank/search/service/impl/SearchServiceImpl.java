@@ -1,17 +1,11 @@
 package com.rank.search.service.impl;
 
 import com.rank.search.entity.KeyWordRank;
-import com.rank.search.util.DataFormatStatus;
 import com.rank.search.service.SearchService;
+import com.rank.search.util.DataFormatStatus;
 import com.rank.search.util.HttpUtil;
 import com.rank.search.util.JsoupHtmlParser;
-import org.apache.poi.hssf.usermodel.HSSFCell;
-import org.apache.poi.hssf.usermodel.HSSFRow;
-import org.apache.poi.hssf.usermodel.HSSFSheet;
-import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xssf.usermodel.XSSFCell;
-import org.apache.poi.xssf.usermodel.XSSFRow;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.slf4j.Logger;
@@ -22,12 +16,8 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import java.io.*;
-import java.net.URLEncoder;
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Objects;
+import java.io.IOException;
+import java.util.*;
 
 /**
  * @author qiaoshiyong@bshf360.com
@@ -38,17 +28,17 @@ public class SearchServiceImpl implements SearchService {
 
     private static Logger logger = LoggerFactory.getLogger(SearchServiceImpl.class);
 
-    private static String nodeFlag = "dayi.org.cn";
+    private static final String nodeFlag = "dayi.org.cn";
 
-    private static String[] pages = {"1","2","3","4","5"}; //搜索前五页
+    private static final String[] pages = {"1","2","3","4","5"}; //搜索前五页
 
-    private static String[] rowName = {"关键词", "搜狗PC端排名", "搜狗移动端排名", "360移动端排名"};
+    private static final String[] rowName = {"关键词", "搜狗PC端排名", "搜狗移动端排名", "360移动端排名"};
 
-    private static String rankSosoMUri = "http://m.sogou.com/web/search/ajax_query.jsp?keyword=%s&s_from=pagenext&p=%s&ie=utf8";
+    private static final String rankSosoMUri = "http://m.sogou.com/web/search/ajax_query.jsp?keyword=%s&s_from=pagenext&p=%s&ie=utf8";
 
-    private static String rankSosoWUri = "http://www.sogou.com/sogou?query=%s&page=%s&ie=utf8";
+    private static final String rankSosoWUri = "http://www.sogou.com/sogou?query=%s&page=%s&ie=utf8";
 
-    private static String rank360Uri = "https://m.so.com/s?q=%s&srcg=home_next&src=own_pager_next&pn=%s";
+    private static final String rank360Uri = "https://m.so.com/s?q=%s&srcg=home_next&src=own_pager_next&pn=%s";
 
     @Override
     public void rankSearch(MultipartFile file, HttpServletRequest request, HttpServletResponse response) {
@@ -142,14 +132,19 @@ public class SearchServiceImpl implements SearchService {
 
     /**
      * m.soso.com
+     * 页面数据有隐藏
      */
     private Integer runSpiderSOSOM(String keyWord){
         logger.info("sosom搜索排行查询--开始");
         //指定分条的标识 class = vrResult
         List<String> sosoMClassNameList = new LinkedList<>();
         sosoMClassNameList.add(".vrResult");
+        //sosoMClassNameList.add(".vr-recommend");
 
-        Integer rank = rankSearch(pages, rankSosoMUri, keyWord, sosoMClassNameList, nodeFlag);
+        List<String> excludeList = new LinkedList<>();
+        excludeList.add(".vr-topic"); //去除页面隐藏数据影响排名
+
+        Integer rank = rankSearch(pages, rankSosoMUri, keyWord, sosoMClassNameList, excludeList, nodeFlag);
         logger.info("sosoM搜索排行查询结果为 " + keyWord +" 排名: " + rank);
         logger.info("sosoM搜索排行查询--结束");
         return rank;
@@ -163,8 +158,10 @@ public class SearchServiceImpl implements SearchService {
         //指定分条的标识 class = vrwrap
         List<String> sosoWClassNameList = new LinkedList<>();
         sosoWClassNameList.add(".vrwrap");
+        //去除页面隐藏数据影响排名
+        List<String> excludeList = new LinkedList<>();
 
-        Integer rank = rankSearch(pages, rankSosoWUri, keyWord, sosoWClassNameList, nodeFlag);
+        Integer rank = rankSearch(pages, rankSosoWUri, keyWord, sosoWClassNameList, excludeList, nodeFlag);
         logger.info("sosoW搜索排行查询结果为 " + keyWord +" 排名: " + rank);
         logger.info("sosoW搜索排行查询--结束");
         return rank;
@@ -178,8 +175,10 @@ public class SearchServiceImpl implements SearchService {
         //指定分条的标识 class = g-card
         List<String> classNameList = new LinkedList<>();
         classNameList.add(".g-card");
+        //去除页面隐藏数据影响排名
+        List<String> excludeList = new LinkedList<>();
 
-        Integer rank = rankSearch(pages, rank360Uri, keyWord, classNameList, nodeFlag);
+        Integer rank = rankSearch(pages, rank360Uri, keyWord, classNameList, excludeList,  nodeFlag);
         logger.info("360搜索排行查询结果为 " + keyWord +" 排名: " + rank);
         logger.info("360搜索排行查询--结束");
         return rank;
@@ -194,30 +193,34 @@ public class SearchServiceImpl implements SearchService {
      * @param nodeFlag dayi.org.cn
      * @return rank 关键字具体排名
      */
-    private Integer rankSearch(String[] pages, String rankUri, String keyWord, List<String> classNameList, String nodeFlag){
+    private Integer rankSearch(String[] pages, String rankUri, String keyWord, List<String> classNameList, List<String> excludeList, String nodeFlag){
         Integer rank = 0;
         Boolean flag = false;
         for (String pageNum : pages) {
             logger.info("当前请求页码: " + pageNum);
             logger.info("当前请求路径: " + (String.format(rankUri, keyWord, pageNum)));
-            // String htmlSource = HttpUtil.getPageCode(String.format(rankUri, keyWord, pageNum), "utf-8");
             String htmlSource = HttpUtil.getPageCode(String.format(rankUri, keyWord, pageNum), "utf-8");
+            //除去隐藏
+            htmlSource = JsoupHtmlParser.removeInnerContent(htmlSource, classNameList.get(0), excludeList);
 
             logger.info("获取到搜索响应");
             List<String> nodeContents = JsoupHtmlParser.getNodeContentBySelector(htmlSource, classNameList, DataFormatStatus.TagAllContent, true);
-            if (htmlSource.contains(nodeFlag)) {
-                //包含此内容 查询确定排名
-                logger.info("当前页面包含搜索关键词 dayi.org.cn ");
-                for (int i = 1; i <= nodeContents.size(); i++) {
-                    if (nodeContents.get(i - 1).contains(nodeFlag)) {
-                        rank += i;
-                        flag = true;
-                        break;
+
+            if (null != nodeContents && nodeContents.size() > 0) {
+                if (htmlSource.contains(nodeFlag)) {
+                    //包含此内容 查询确定排名
+                    logger.info("当前页面包含搜索关键词 dayi.org.cn ");
+                    for (int i = 1; i <= nodeContents.size(); i++) {
+                        if (nodeContents.get(i - 1).contains(nodeFlag)) {
+                            rank += i;
+                            flag = true;
+                            break;
+                        }
                     }
+                    break;
+                } else {
+                    rank += nodeContents.size();
                 }
-                break;
-            } else {
-                rank += nodeContents.size();
             }
         }
         if(!flag){

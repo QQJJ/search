@@ -15,16 +15,16 @@ spring:
     expose-session-attributes: true
     request-context-attribute: request
     suffix: .ftl
- #ÈÈ²¿Êğ
+ #çƒ­éƒ¨ç½²
   devtools:
     restart:
       enabled: true
       exclude: static
       additional-paths: src/main/java
-# ¾²Ì¬×ÊÔ´
+# é™æ€èµ„æº
   mvc:
     static-path-pattern: /static/**
-# ÈÕÖ¾
+# æ—¥å¿—
 logging:
   level:
     com.rank: debug
